@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kana-Drill-Master (Single File)</title>
+<style>
+  /* minimal, hell, geometrisch */
+  :root{--bg:#f5f6f8;--card:#fff;--ink:#111827;--muted:#6b7280;--line:#e5e7eb;
+        --good:#c8f7c5;--mid:#fff4b8;--bad:#ffc4c4;}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Noto Sans JP",Arial}
+  .wrap{max-width:360px;margin:18px auto;padding:0 12px}
+  h1{margin:0 0 12px;text-align:center;font-size:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0}
+  label{display:block;color:var(--muted);margin-bottom:6px;font-size:14px}
+  select{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  #kana{height:120px;display:flex;align-items:center;justify-content:center;font-size:64px;
+        background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:6px}
+  #answer{width:100%;padding:10px;font-size:18px;border:1px solid var(--line);border-radius:8px}
+  #fb{min-height:48px;margin-top:6px;padding:10px;border-radius:8px;font-size:14px}
+  #fb.ok{background:#d4f7d4;color:#0a7a0a} #fb.err{background:#ffd7d7;color:#a00000}
+  #custom-card{display:none}
+  #grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .cell{background:#fff;border:1px solid var(--line);border-radius:6px;text-align:center;
+        padding:6px;cursor:pointer}
+  .cell small{display:block;font-size:11px;color:#666}
+  .cell.good{background:var(--good)} .cell.mid{background:var(--mid)} .cell.bad{background:var(--bad)}
+  .row{display:flex;gap:6px;margin-top:6px}
+  button{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;background:#eee;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Kana-Drill-Master</h1>
+
+  <div class="card">
+    <label for="mode">Modus</label>
+    <select id="mode">
+      <option value="Hiragana">Hiragana</option>
+      <option value="Katakana">Katakana</option>
+      <option value="HiraganaDakuten">Hiragana (Dakuten)</option>
+      <option value="HiraganaHandakuten">Hiragana (Handakuten)</option>
+      <option value="KatakanaDakuten">Katakana (Dakuten)</option>
+      <option value="KatakanaHandakuten">Katakana (Handakuten)</option>
+      <option value="Custom">Custom</option>
+    </select>
+  </div>
+
+  <div class="card" id="custom-card">
+    <div id="grid"></div>
+    <div class="row">
+      <button id="start">Start</button>
+      <button id="clear">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="kana">—</div>
+    <form id="form">
+      <input id="answer" autocomplete="off" autocapitalize="none" placeholder="Romaji eingeben … Enter">
+    </form>
+    <div id="fb"></div>
+  </div>
+</div>
+
+<script>
+/* 0. CONST */
+const HIRA=["あ","い","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ","た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ","ま","み","む","め","も","や","ゆ","よ","ら","り","る","れ","ろ","わ","を","ん"];
+const KATA=["ア","イ","ウ","エ","オ","カ","キ","ク","ケ","コ","サ","シ","ス","セ","ソ","タ","チ","ツ","テ","ト","ナ","ニ","ヌ","ネ","ノ","ハ","ヒ","フ","ヘ","ホ","マ","ミ","ム","メ","モ","ヤ","ユ","ヨ","ラ","リ","ル","レ","ロ","ワ","ヲ","ン"];
+const HIRA_D=["が","ぎ","ぐ","げ","ご","ざ","じ","ず","ぜ","ぞ","だ","ぢ","づ","で","ど","ば","び","ぶ","べ","ぼ"];
+const HIRA_H=["ぱ","ぴ","ぷ","ぺ","ぽ"];
+const KATA_D=["ガ","ギ","グ","ゲ","ゴ","ザ","ジ","ズ","ゼ","ゾ","ダ","ヂ","ヅ","デ","ド","バ","ビ","ブ","ベ","ボ","ヴ"];
+const KATA_H=["パ","ピ","プ","ペ","ポ"];
+const ROM={"あ":"a","い":"i","う":"u","え":"e","お":"o","か":"ka","き":"ki","く":"ku","け":"ke","こ":"ko","さ":"sa","し":"shi","す":"su","せ":"se","そ":"so","た":"ta","ち":"chi","つ":"tsu","て":"te","と":"to","な":"na","に":"ni","ぬ":"nu","ね":"ne","の":"no","は":"ha","ひ":"hi","ふ":"fu","へ":"he","ほ":"ho","ま":"ma","み":"mi","む":"mu","め":"me","も":"mo","や":"ya","ゆ":"yu","よ":"yo","ら":"ra","り":"ri","る":"ru","れ":"re","ろ":"ro","わ":"wa","を":"wo","ん":"n","が":"ga","ぎ":"gi","ぐ":"gu","げ":"ge","ご":"go","ざ":"za","じ":"ji","ず":"zu","ぜ":"ze","ぞ":"zo","だ":"da","ぢ":"ji","づ":"zu","で":"de","ど":"do","ば":"ba","び":"bi","ぶ":"bu","べ":"be","ぼ":"bo","ぱ":"pa","ぴ":"pi","ぷ":"pu","ぺ":"pe","ぽ":"po","ア":"a","イ":"i","ウ":"u","エ":"e","オ":"o","カ":"ka","キ":"ki","ク":"ku","ケ":"ke","コ":"ko","サ":"sa","シ":"shi","ス":"su","セ":"se","ソ":"so","タ":"ta","チ":"chi","ツ":"tsu","テ":"te","ト":"to","ナ":"na","ニ":"ni","ヌ":"nu","ネ":"ne","ノ":"no","ハ":"ha","ヒ":"hi","フ":"fu","ヘ":"he","ホ":"ho","マ":"ma","ミ":"mi","ム":"mu","メ":"me","モ":"mo","ヤ":"ya","ユ":"yu","ヨ":"yo","ラ":"ra","リ":"ri","ル":"ru","レ":"re","ロ":"ro","ワ":"wa","ヲ":"wo","ン":"n","ガ":"ga","ギ":"gi","グ":"gu","ゲ":"ge","ゴ":"go","ザ":"za","ジ":"ji","ズ":"zu","ゼ":"ze","ゾ":"zo","ダ":"da","ヂ":"ji","ヅ":"zu","デ":"de","ド":"do","バ":"ba","ビ":"bi","ブ":"bu","ベ":"be","ボ":"bo","ヴ":"vu","パ":"pa","ピ":"pi","プ":"pu","ペ":"pe","ポ":"po"};
+
+/* 1. STATE */
+let pool=[...HIRA],queue=[],i=0,stats={};
+try{stats=JSON.parse(localStorage.getItem("kanaStats")||"{}");}catch(e){stats={};}
+
+/* 2. DOM */
+const $=id=>document.getElementById(id);
+const mode=$("mode"), kana=$("kana"), form=$("form"), ans=$("answer"), fb=$("fb");
+const customCard=$("custom-card"), grid=$("grid"), startBtn=$("start"), clearBtn=$("clear");
+
+/* 3. PURE */
+const norm=s=>String(s||"").trim().toLowerCase();
+const rom=ch=>ROM[ch]||"";
+const acc=k=>{const s=stats[k]||{ok:0,fail:0};const t=s.ok+s.fail;return t? s.ok/t:0;};
+const poolByMode=m=>m==="Hiragana"?[...HIRA]:
+  m==="Katakana"?[...KATA]:
+  m==="HiraganaDakuten"?[...HIRA_D]:
+  m==="HiraganaHandakuten"?[...HIRA_H]:
+  m==="KatakanaDakuten"?[...KATA_D]:
+  m==="KatakanaHandakuten"?[...KATA_H]:[];
+
+/* 4. SCHEDULER */
+function buildQueue(a){queue=a.map(ch=>({ch,step:0}));i=0;}
+function cur(){return queue[i];}
+function reinsert(idx,off){const it=queue.splice(idx,1)[0];let pos=idx+off; if(pos>queue.length)pos=queue.length; queue.splice(pos,0,it);}
+function next(){i++; if(i>=queue.length)i=0;}
+function show(){kana.textContent=cur()?cur().ch:"—"; ans.value=""; ans.focus();}
+function grade(v){
+  const it=cur(); if(!it) return; const r=rom(it.ch);
+  if(norm(v)===norm(r)){
+    stats[it.ch]=stats[it.ch]||{ok:0,fail:0}; stats[it.ch].ok++;
+    fb.className=""; fb.classList.add("ok"); fb.id="fb"; fb.textContent=""; fb.innerHTML=`✔ ${it.ch} = <b>${r}</b>`;
+    it.step=Math.min(it.step+1,6); reinsert(i,Math.max(2,it.step)); next(); show();
+  }else{
+    stats[it.ch]=stats[it.ch]||{ok:0,fail:0}; stats[it.ch].fail++;
+    fb.className=""; fb.classList.add("err"); fb.id="fb"; fb.innerHTML=`✖ ${it.ch} = <b>${r}</b><br>Deine Eingabe: „${v}”`;
+    it.step=0; reinsert(i,1); show();
+  }
+  localStorage.setItem("kanaStats",JSON.stringify(stats)); paintGrid();
+}
+
+/* 5. CUSTOM GRID */
+function initGrid(){
+  const all=[...HIRA,...HIRA_D,...HIRA_H,...KATA,...KATA_D,...KATA_H];
+  grid.innerHTML="";
+  all.forEach(ch=>{
+    const d=document.createElement("div");
+    d.className="cell"; d.dataset.ch=ch;
+    d.innerHTML=`<b>${ch}</b><small>${rom(ch)}</small>`;
+    d.onclick=()=>{d.classList.toggle("selected");};
+    grid.appendChild(d);
+  });
+  paintGrid();
+}
+function paintGrid(){
+  grid.querySelectorAll(".cell").forEach(c=>{
+    c.classList.remove("good","mid","bad");
+    const a=acc(c.dataset.ch); const s=stats[c.dataset.ch]; const t=(s?s.ok+s.fail:0);
+    if(t===0||a<.5) c.classList.add("bad"); else if(a<.8) c.classList.add("mid"); else c.classList.add("good");
+  });
+}
+
+/* 6. EVENTS */
+form.addEventListener("submit",e=>{e.preventDefault(); grade(ans.value);});
+ans.addEventListener("input",()=>{fb.className=""; fb.textContent="";});
+mode.addEventListener("change",()=>{
+  const m=mode.value;
+  if(m==="Custom"){customCard.style.display="block"; return;}
+  customCard.style.display="none";
+  pool=poolByMode(m); buildQueue(pool); show();
+});
+startBtn.addEventListener("click",()=>{
+  const sel=[...grid.querySelectorAll(".cell.selected")].map(n=>n.dataset.ch);
+  if(!sel.length) return; pool=sel; buildQueue(pool); customCard.style.display="none"; show();
+});
+clearBtn.addEventListener("click",()=>{
+  grid.querySelectorAll(".cell.selected").forEach(n=>n.classList.remove("selected"));
+});
+
+/* 7. INIT */
+initGrid();
+pool=poolByMode(mode.value); buildQueue(pool); show();
+</script>
+</body>
+</html>
